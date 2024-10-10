@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>虎门大桥vs深中通道路径比较（按钮修复版）</title>
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #container { width: 100%; height: 100%; }
+        #panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 999;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+        #toggleRoute {
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        #toggleRoute:hover {
+            background-color: #45a049;
+        }
+        #info {
+            font-size: 24px;
+            line-height: 1.6;
+        }
+        .route-name {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .route-details {
+            font-size: 22px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        #debug { 
+            position: absolute; 
+            bottom: 10px; 
+            left: 10px; 
+            background-color: rgba(255, 255, 255, 0.8); 
+            padding: 10px; 
+            border-radius: 5px; 
+            max-height: 150px; 
+            overflow-y: auto; 
+            font-size: 12px;
+        }
+    </style>
+    <script type="text/javascript">
+    window._AMapSecurityConfig = {
+        securityJsCode: "3d31593eb803ba45e7221fa5537627c7",
+    }
+    </script>
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=817f66312657e43669dcab5f1cdf3455&plugin=AMap.Driving"></script>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="panel">
+        <button id="toggleRoute">切换到深中通道路线</button>
+        <div id="info"></div>
+    </div>
+    <div id="debug"></div>
+
+    <script>
+        var map, driving;
+        var isCurrentRoute = false; // 默认显示虎门大桥路线
+        var debugInfo = document.getElementById('debug');
+        var infoPanel = document.getElementById('info');
+        var toggleButton = document.getElementById('toggleRoute');
+
+        var zhongshan = [113.415093,22.501697]; // 中山市中心
+        var shenzhen = [113.902581,22.514341];  // 深圳市中心
+        var shenzhoong = [113.624931,22.550126]; // 深中通道
+        var humen = [113.599436,22.77938];     // 虎门大桥
+        function addDebugInfo(info) {
+            debugInfo.innerHTML += info + '<br>';
+            console.log(info);
+        }
+
+        function initMap() {
+            addDebugInfo("开始初始化地图");
+            try {
+                map = new AMap.Map('container', {
+                    zoom: 9,
+                    center: [113.7, 22.8]
+                });
+                addDebugInfo("地图初始化完成");
+
+                driving = new AMap.Driving({
+                    map: map,
+                    panel: "panel"
+                });
+                addDebugInfo("驾车路径规划服务初始化完成");
+
+                // 确保toggleButton存在
+                if (toggleButton) {
+                    toggleButton.addEventListener('click', toggleRoute);
+                    addDebugInfo("按钮事件监听器绑定完成");
+                } else {
+                    addDebugInfo("错误：未找到切换按钮");
+                }
+
+                showRoute();
+            } catch (error) {
+                addDebugInfo("初始化错误: " + error.message);
+            }
+        }
+
+        function toggleRoute() {
+            addDebugInfo("toggleRoute 函数被调用");
+            isCurrentRoute = !isCurrentRoute;
+            toggleButton.textContent = isCurrentRoute ? "切换到虎门大桥路线" : "切换到深中通道路线";
+            addDebugInfo("切换路线: " + (isCurrentRoute ? "深中通道" : "虎门大桥"));
+            showRoute();
+        }
+
+        function showRoute() {
+            addDebugInfo("开始路径规划");
+            var waypoint = isCurrentRoute ? shenzhoong : humen;
+            
+            try {
+                driving.search(
+                    new AMap.LngLat(zhongshan[0], zhongshan[1]),
+                    new AMap.LngLat(shenzhen[0], shenzhen[1]),
+                    {
+                        waypoints: [new AMap.LngLat(waypoint[0], waypoint[1])]
+                    },
+                    function(status, result) {
+                        addDebugInfo("路径规划回调 - 状态: " + status);
+                        if (status === 'complete') {
+                            var route = result.routes[0];
+                            updateRouteInfo(route);
+                            addDebugInfo("路径显示完成");
+                        } else {
+                            infoPanel.innerHTML = "路径规划失败，请检查网络连接和API密钥设置";
+                            addDebugInfo("路径规划失败: " + JSON.stringify(result));
+                        }
+                    }
+                );
+            } catch (error) {
+                addDebugInfo("路径规划错误: " + error.message);
+            }
+        }
+
+        function updateRouteInfo(route) {
+            infoPanel.innerHTML = `
+                <div class="route-name">${isCurrentRoute ? '深中通道路线' : '虎门大桥路线'}</div>
+                <div class="route-details">距离：<span class="highlight">${(route.distance / 1000).toFixed(2)} 公里</span></div>
+                <div class="route-details">预计时间：<span class="highlight">${(route.time / 60).toFixed(0)} 分钟</span></div>
+            `;
+        }
+
+        // 使用 window.onload 确保在DOM完全加载后初始化
+        window.onload = function() {
+            addDebugInfo("window.onload 事件触发");
+            initMap();
+        };
+    </script>
+</body>
+</html>
